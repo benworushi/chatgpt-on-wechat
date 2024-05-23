@@ -101,7 +101,17 @@ def qrCallback(uuid, status, qrcode):
         qr.add_data(url)
         qr.make(fit=True)
         qr.print_ascii(invert=True)
-
+        
+def extract_first_ciciai_link(text):
+    # 定义匹配URL的正则表达式
+    url_pattern = re.compile(r'(https?://[^\s]+)')
+    # 找到所有URL
+    urls = url_pattern.findall(text)
+    # 迭代过滤出包含ciciai的第一个URL
+    for url in urls:
+        if 'ciciai' in url:
+            return url
+    return None
 
 @singleton
 class WechatChannel(ChatChannel):
@@ -111,7 +121,18 @@ class WechatChannel(ChatChannel):
         super().__init__()
         self.receivedMsgs = ExpiredDict(60 * 60)
         self.auto_login_times = 0
-
+        
+   def extract_first_ciciai_link(self, text):
+        # 定义匹配URL的正则表达式
+        url_pattern = re.compile(r'(https?://[^\s]+)')
+        # 找到所有URL
+        urls = url_pattern.findall(text)
+        # 迭代过滤出包含ciciai的第一个URL
+        for url in urls:
+            if 'ciciai' in url:
+                return url
+        return None
+       
     def startup(self):
         try:
             itchat.instance.receivingRetryCount = 600  # 修改断线超时时间
@@ -205,24 +226,12 @@ class WechatChannel(ChatChannel):
         context = self._compose_context(cmsg.ctype, cmsg.content, isgroup=True, msg=cmsg)
         if context:
             self.produce(context)
-
-
-  def extract_first_ciciai_link(text):
-    # 定义匹配URL的正则表达式
-    url_pattern = re.compile(r'(https?://[^\s]+)')
-    # 找到所有URL
-    urls = url_pattern.findall(text)
-    # 迭代过滤出包含ciciai的第一个URL
-    for url in urls:
-        if 'ciciai' in url:
-            return url
-    return None
-    
+            
     # 统一的发送函数，每个Channel自行实现，根据reply的type字段发送不同类型的消息
     def send(self, reply: Reply, context: Context):
         receiver = context["receiver"]
         if reply.type == ReplyType.TEXT:
-            first_ciciai_link = extract_first_ciciai_link(text)
+            first_ciciai_link = extract_first_ciciai_link(reply.content)
             if first_ciciai_link:
                 reply.type=ReplyType.IMAGE_URL
                 reply.content=first_ciciai_link
