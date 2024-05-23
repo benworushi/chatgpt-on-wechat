@@ -121,18 +121,7 @@ class WechatChannel(ChatChannel):
         super().__init__()
         self.receivedMsgs = ExpiredDict(60 * 60)
         self.auto_login_times = 0
-        
-   def extract_first_ciciai_link(self, text):
-        # 定义匹配URL的正则表达式
-        url_pattern = re.compile(r'(https?://[^\s]+)')
-        # 找到所有URL
-        urls = url_pattern.findall(text)
-        # 迭代过滤出包含ciciai的第一个URL
-        for url in urls:
-            if 'ciciai' in url:
-                return url
-        return None
-       
+    
     def startup(self):
         try:
             itchat.instance.receivingRetryCount = 600  # 修改断线超时时间
@@ -231,7 +220,15 @@ class WechatChannel(ChatChannel):
     def send(self, reply: Reply, context: Context):
         receiver = context["receiver"]
         if reply.type == ReplyType.TEXT:
-            first_ciciai_link = extract_first_ciciai_link(reply.content)
+            first_ciciai_link = None
+            pic_links=None
+            if "ciciai" in reply.content:
+                first_ciciai_link = extract_first_ciciai_link(reply.content)
+            elif "jpg" in reply.content or "png" in reply.content:
+                urls = re.findall(r'(https?://[^\s]+?\.(?:jpg|png))', reply.content)
+                pic_links = list(set(urls))
+            else:
+                first_ciciai_link = None
             if first_ciciai_link:
                 reply.type=ReplyType.IMAGE_URL
                 reply.content=first_ciciai_link
@@ -247,6 +244,20 @@ class WechatChannel(ChatChannel):
                 image_storage.seek(0)
                 itchat.send_image(image_storage, toUserName=receiver)
                 logger.info("[WX] sendImage url={}, receiver={}".format(img_url, receiver))
+            elif pic_links:
+                for url in pic_links:
+                    img_url = url
+                    logger.debug(f"[WX] start download image, img_url={img_url}")
+                    pic_res = requests.get(img_url, stream=True)
+                    image_storage = io.BytesIO()
+                    size = 0
+                    for block in pic_res.iter_content(1024):
+                        size += len(block)
+                        image_storage.write(block)
+                    logger.info(f"[WX] download image success, size={size}, img_url={img_url}")
+                    image_storage.seek(0)
+                    itchat.send_image(image_storage, toUserName=receiver)
+                    logger.info("[WX] sendImage url={}, receiver={}".format(img_url, receiver))
             else:
                 itchat.send(reply.content, toUserName=receiver)
                 logger.info("[WX] sendMsg={}, receiver={}".format(reply, receiver))
