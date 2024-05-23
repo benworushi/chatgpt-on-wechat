@@ -11,7 +11,7 @@ import threading
 import time
 
 import requests
-
+import re
 from bridge.context import *
 from bridge.reply import *
 from channel.chat_channel import ChatChannel
@@ -206,12 +206,41 @@ class WechatChannel(ChatChannel):
         if context:
             self.produce(context)
 
+
+  def extract_first_ciciai_link(text):
+    # 定义匹配URL的正则表达式
+    url_pattern = re.compile(r'(https?://[^\s]+)')
+    # 找到所有URL
+    urls = url_pattern.findall(text)
+    # 迭代过滤出包含ciciai的第一个URL
+    for url in urls:
+        if 'ciciai' in url:
+            return url
+    return None
+    
     # 统一的发送函数，每个Channel自行实现，根据reply的type字段发送不同类型的消息
     def send(self, reply: Reply, context: Context):
         receiver = context["receiver"]
         if reply.type == ReplyType.TEXT:
-            itchat.send(reply.content, toUserName=receiver)
-            logger.info("[WX] sendMsg={}, receiver={}".format(reply, receiver))
+            first_ciciai_link = extract_first_ciciai_link(text)
+            if first_ciciai_link:
+                reply.type=ReplyType.IMAGE_URL
+                reply.content=first_ciciai_link
+                img_url = reply.content
+                logger.debug(f"[WX] start download image, img_url={img_url}")
+                pic_res = requests.get(img_url, stream=True)
+                image_storage = io.BytesIO()
+                size = 0
+                for block in pic_res.iter_content(1024):
+                    size += len(block)
+                    image_storage.write(block)
+                logger.info(f"[WX] download image success, size={size}, img_url={img_url}")
+                image_storage.seek(0)
+                itchat.send_image(image_storage, toUserName=receiver)
+                logger.info("[WX] sendImage url={}, receiver={}".format(img_url, receiver))
+            else:
+                itchat.send(reply.content, toUserName=receiver)
+                logger.info("[WX] sendMsg={}, receiver={}".format(reply, receiver))
         elif reply.type == ReplyType.ERROR or reply.type == ReplyType.INFO:
             itchat.send(reply.content, toUserName=receiver)
             logger.info("[WX] sendMsg={}, receiver={}".format(reply, receiver))
