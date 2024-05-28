@@ -119,9 +119,16 @@ class WechatChannel(ChatChannel):
 
     def __init__(self):
         super().__init__()
-        self.receivedMsgs = ExpiredDict(60 * 60)
+        self.receivedMsgs = ExpiredDict(60 * 60 * 24)
         self.auto_login_times = 0
-    
+        
+    def **login_callback(self):**
+        print('Login successful')
+
+    def logout_callback(self):
+        print('Logout')
+        self.startup()
+        
     def startup(self):
         try:
             itchat.instance.receivingRetryCount = 600  # 修改断线超时时间
@@ -229,6 +236,8 @@ class WechatChannel(ChatChannel):
                 pic_links = list(set(urls))
             else:
                 first_ciciai_link = None
+                pic_link=None
+                
             if first_ciciai_link:
                 reply.type=ReplyType.IMAGE_URL
                 reply.content=first_ciciai_link
@@ -245,8 +254,8 @@ class WechatChannel(ChatChannel):
                 itchat.send_image(image_storage, toUserName=receiver)
                 logger.info("[WX] sendImage url={}, receiver={}".format(img_url, receiver))
             elif pic_links:
-                for url in pic_links:
-                    img_url = url
+                #for url in pic_links:
+                    img_url = pic_links[0]
                     logger.debug(f"[WX] start download image, img_url={img_url}")
                     pic_res = requests.get(img_url, stream=True)
                     image_storage = io.BytesIO()
